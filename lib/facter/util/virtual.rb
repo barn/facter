@@ -1,15 +1,27 @@
 module Facter::Util::Virtual
     def self.openvz?
-        FileTest.directory?("/proc/vz") and FileTest.exists?( '/proc/vz/veinfo' )
+        FileTest.directory?("/proc/vz")
     end
 
+    # So one can either have #6728 work on OpenVZ or Cloudlinux. Whoo.
     def self.openvz_type
-        return nil unless self.openvz?
-        if FileTest.exists?("/proc/vz/version")
-            result = "openvzhn"
-        else
-            result = "openvzve"
-        end
+      return false unless self.openvz?
+      return false unless File.exists?( '/proc/self/status' )
+      return false if self.openvz_cloudlinux?
+
+      envid = Facter::Util::Resolution.exec( 'grep "envID" /proc/self/status' )
+      if envid =~ /^envID:\s+0$/i
+        return 'openvzhn'
+      elsif envid =~ /^envID:\s+(\d+)$/i
+        return 'openvzve'
+      else
+        return false
+      end
+    end
+
+    # Cloudlinux uses OpenVZ to a degree, but always has an empty /proc/vz/
+    def self.openvz_cloudlinux?
+      Dir.glob( '/proc/vz/*' ).empty?
     end
 
     def self.zone?
